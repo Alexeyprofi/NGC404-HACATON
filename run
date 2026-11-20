@@ -167,15 +167,56 @@ def find_options(catalog, city, budget, categories, constraints):
         ids = tuple(sorted(it['id'] for it in combo))
         if ids in seen_ids: continue
         seen_ids.add(ids)
+        
+        # Формируем explanation ТОЛЬКО по запрошенным ограничениям
         parts = []
         for it in combo:
-            if it['category'] == 'table' and 'width_cm' in (it.get('attributes') or {}):
-                parts.append(f"стол шириной {it['attributes']['width_cm']} см")
-            elif it['category'] == 'chair' and (it.get('attributes') or {}).get('adjustable_height') is True:
-                parts.append("кресло с регулировкой высоты")
-            elif it['category'] == 'lamp' and 'color_temperature_k' in (it.get('attributes') or {}):
-                parts.append(f"лампа {it['attributes']['color_temperature_k']} К")
-        explanation = ', '.join(parts) if parts else 'Подходящий комплект'
+            cat = it['category']
+            attrs = it.get('attributes') or {}
+            
+            # Стол: упоминаем ширину только если было ограничение
+            if cat == 'table':
+                if 'table_width_max_cm' in constraints:
+                    width = attrs.get('width_cm')
+                    if width is not None:
+                        parts.append(f"стол шириной {width} см (до {constraints['table_width_max_cm']} см)")
+                elif 'table_width_min_cm' in constraints:
+                    width = attrs.get('width_cm')
+                    if width is not None:
+                        parts.append(f"стол шириной {width} см (от {constraints['table_width_min_cm']} см)")
+                elif 'table_width_exact_cm' in constraints:
+                    width = attrs.get('width_cm')
+                    if width is not None:
+                        parts.append(f"стол шириной {width} см")
+            
+            # Кресло: упоминаем регулировку только если было ограничение
+            elif cat == 'chair':
+                if 'chair_adjustable_height' in constraints:
+                    adj = attrs.get('adjustable_height')
+                    if adj is True:
+                        parts.append("кресло с регулировкой высоты")
+                    elif adj is False:
+                        parts.append("кресло без регулировки высоты")
+            
+            # Лампа: упоминаем температуру только если было ограничение
+            elif cat == 'lamp':
+                temp = attrs.get('color_temperature_k')
+                if 'lamp_temp_exact_k' in constraints and temp is not None:
+                    parts.append(f"лампа {temp} К")
+                elif 'lamp_temp_min_k' in constraints and 'lamp_temp_max_k' in constraints and temp is not None:
+                    parts.append(f"лампа {temp} К (от {constraints['lamp_temp_min_k']} до {constraints['lamp_temp_max_k']} К)")
+                elif 'lamp_temp_min_k' in constraints and temp is not None:
+                    parts.append(f"лампа {temp} К (от {constraints['lamp_temp_min_k']} К)")
+                elif 'lamp_temp_max_k' in constraints and temp is not None:
+                    parts.append(f"лампа {temp} К (до {constraints['lamp_temp_max_k']} К)")
+        
+        # Если ни одного ограничения не было — общее объяснение
+        if not parts:
+            cat_names = {'table': 'стол', 'chair': 'кресло', 'lamp': 'лампа'}
+            items_list = ', '.join(cat_names.get(c, c) for c in categories)
+            parts.append(f"комплект из {len(categories)} товаров ({items_list}) в городе {city}")
+        
+        explanation = ', '.join(parts)
         options.append({"listing_ids": [it['id'] for it in combo], "total_rub": total, "explanation": explanation})
         if len(options) >= 3: break
     options.sort(key=lambda o: o['total_rub'])
@@ -208,7 +249,6 @@ def main():
     try:
         llm_messages = build_llm_messages(history)
         requirements = call_llm(settings, llm_messages)
-        print(f"[debug] LLM returned: {requirements}", file=sys.stderr)
     except Exception as e:
         print(f"LLM call failed: {e}", file=sys.stderr)
         sys.exit(1)
