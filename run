@@ -59,7 +59,7 @@ def call_llm(settings, messages_for_llm):
         "max_tokens": 512,
         "response_format": schema
     }
-    data = json.dumps(body, ensure_ascii=False).encode('utf-8')
+    data = json.dumps(body, ensure_ascii=True).encode('utf-8')
     req = urllib.request.Request(
         base_url + '/chat/completions',
         data=data,
@@ -70,7 +70,7 @@ def call_llm(settings, messages_for_llm):
         }
     )
     try:
-        with urllib.request.urlopen(req, timeout=90) as resp:
+        with urllib.request.urlopen(req, timeout=120) as resp:
             raw = resp.read().decode('utf-8')
     except urllib.error.HTTPError as e:
         err_body = e.read().decode('utf-8', errors='replace')
@@ -105,7 +105,8 @@ SYSTEM_PROMPT = """Ты — помощник покупателя. Извлек�
 def build_llm_messages(history):
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
     for m in history:
-        msgs.append({"role": m['role'], "content": m['text']})
+        clean_text = m['text'].encode('utf-8', errors='replace').decode('utf-8')
+        msgs.append({"role": m['role'], "content": clean_text})
     return msgs
 
 VALID_CITIES = {"taganrog", "rostov-na-donu", "azov"}
@@ -167,14 +168,10 @@ def find_options(catalog, city, budget, categories, constraints):
         ids = tuple(sorted(it['id'] for it in combo))
         if ids in seen_ids: continue
         seen_ids.add(ids)
-        
-        # Формируем explanation ТОЛЬКО по запрошенным ограничениям
         parts = []
         for it in combo:
             cat = it['category']
             attrs = it.get('attributes') or {}
-            
-            # Стол: упоминаем ширину только если было ограничение
             if cat == 'table':
                 if 'table_width_max_cm' in constraints:
                     width = attrs.get('width_cm')
@@ -188,8 +185,6 @@ def find_options(catalog, city, budget, categories, constraints):
                     width = attrs.get('width_cm')
                     if width is not None:
                         parts.append(f"стол шириной {width} см")
-            
-            # Кресло: упоминаем регулировку только если было ограничение
             elif cat == 'chair':
                 if 'chair_adjustable_height' in constraints:
                     adj = attrs.get('adjustable_height')
@@ -197,8 +192,6 @@ def find_options(catalog, city, budget, categories, constraints):
                         parts.append("кресло с регулировкой высоты")
                     elif adj is False:
                         parts.append("кресло без регулировки высоты")
-            
-            # Лампа: упоминаем температуру только если было ограничение
             elif cat == 'lamp':
                 temp = attrs.get('color_temperature_k')
                 if 'lamp_temp_exact_k' in constraints and temp is not None:
@@ -209,13 +202,10 @@ def find_options(catalog, city, budget, categories, constraints):
                     parts.append(f"лампа {temp} К (от {constraints['lamp_temp_min_k']} К)")
                 elif 'lamp_temp_max_k' in constraints and temp is not None:
                     parts.append(f"лампа {temp} К (до {constraints['lamp_temp_max_k']} К)")
-        
-        # Если ни одного ограничения не было — общее объяснение
         if not parts:
             cat_names = {'table': 'стол', 'chair': 'кресло', 'lamp': 'лампа'}
             items_list = ', '.join(cat_names.get(c, c) for c in categories)
             parts.append(f"комплект из {len(categories)} товаров ({items_list}) в городе {city}")
-        
         explanation = ', '.join(parts)
         options.append({"listing_ids": [it['id'] for it in combo], "total_rub": total, "explanation": explanation})
         if len(options) >= 3: break
@@ -237,7 +227,8 @@ def main():
         print(f"Error loading catalog: {e}", file=sys.stderr)
         sys.exit(1)
     try:
-        request = json.load(sys.stdin)
+        raw_stdin = sys.stdin.buffer.read().decode('utf-8', errors='replace')
+        request = json.loads(raw_stdin)
     except Exception as e:
         print(f"Error reading request from stdin: {e}", file=sys.stderr)
         sys.exit(1)
@@ -268,7 +259,7 @@ def main():
     if not options:
         result = {
             "status": "no_match",
-            "message": f"В городе {city} не нашлось полного комплекта из запрошенных категорий в пределах {budget} ₽. Попробуйте увеличить бюджет или изменить город."
+            "message": f"В городе {city} не нашлось полного комплекта из запрошенных категорий в пределах {budget} руб. Попробуйте увеличить бюджет или изменить город."
         }
     else:
         result = {"status": "ok", "options": options}
