@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ИИ-помощник покупателя</title>
+<style>
+  :root {
+    --green: #0a9e4a;
+    --blue: #1565e0;
+    --red: #e02b2b;
+    --purple: #7b2fd1;
+    --ink: #1b1b1f;
+    --muted: #5d6370;
+    --line: #d9dde5;
+    --soft: #f5f7fa;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #ffffff;
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px;
+  }
+  body { display: flex; flex-direction: column; }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 3px solid var(--purple);
+    background: #ffffff;
+  }
+  header .logo {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: conic-gradient(var(--green) 0 25%, var(--blue) 0 50%, var(--red) 0 75%, var(--purple) 0);
+  }
+  header h1 { font-size: 18px; margin: 0; font-weight: 700; }
+  header .spacer { flex: 1; }
+  #clear {
+    border: 2px solid var(--red);
+    background: #fff;
+    color: var(--red);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #clear:hover { background: var(--red); color: #fff; }
+
+  #chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 880px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .msg {
+    max-width: 82%;
+    padding: 12px 14px;
+    border-radius: 14px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    border: 2px solid transparent;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: var(--blue);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.assistant {
+    align-self: flex-start;
+    background: var(--soft);
+    border-color: var(--line);
+    border-bottom-left-radius: 4px;
+  }
+  .msg.assistant .label { font-weight: 700; margin-bottom: 4px; }
+  .msg.clarify { border-color: var(--purple); }
+  .msg.clarify .label { color: var(--purple); }
+  .msg.nomatch { border-color: var(--red); }
+  .msg.nomatch .label { color: var(--red); }
+  .msg.error { border-color: var(--red); background: #fff; color: var(--red); }
+
+  .options { display: grid; gap: 10px; margin-top: 8px; }
+  .option {
+    background: #fff;
+    border: 2px solid var(--green);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .option .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .option .title { font-weight: 700; color: var(--green); }
+  .option .price { font-weight: 800; color: var(--blue); font-size: 17px; white-space: nowrap; }
+  .option .ids { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .option .why { margin-top: 6px; }
+
+  .msg.clarify ul { margin: 0; padding-left: 20px; }
+  .msg.clarify li { margin: 4px 0; }
+
+  .typing { color: var(--muted); font-style: italic; }
+
+  form#input-form {
+    border-top: 2px solid var(--line);
+    background: #fff;
+    padding: 14px 20px;
+  }
+  .row {
+    display: flex;
+    gap: 10px;
+    max-width: 880px;
+    margin: 0 auto;
+  }
+  #text {
+    flex: 1;
+    font: inherit;
+    padding: 12px 14px;
+    border: 2px solid var(--line);
+    border-radius: 10px;
+    resize: none;
+    min-height: 48px;
+    max-height: 160px;
+    color: var(--ink);
+    background: #fff;
+  }
+  #text:focus { outline: none; border-color: var(--green); }
+  #send {
+    font: inherit;
+    font-weight: 700;
+    padding: 0 22px;
+    border: none;
+    border-radius: 10px;
+    background: var(--green);
+    color: #fff;
+    cursor: pointer;
+  }
+  #send:hover { background: #078a3f; }
+  #send:disabled { background: #9aa3b2; cursor: default; }
+
+  .hint { max-width: 880px; margin: 6px auto 0; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo" aria-hidden="true"></div>
+  <h1>ИИ-помощник покупателя</h1>
+  <div class="spacer"></div>
+  <button id="clear" type="button">Очистить диалог</button>
+</header>
+
+<main id="chat" aria-live="polite"></main>
+
+<form id="input-form" autocomplete="off">
+  <div class="row">
+    <textarea id="text" rows="1" placeholder="Например: стол до 100 см, кресло с регулировкой высоты, Таганрог, до 15 000 ₽"></textarea>
+    <button id="send" type="submit">Отправить</button>
+  </div>
+  <div class="hint">Enter — отправить, Shift+Enter — новая строка</div>
+</form>
+
+<script>
+(() => {
+  const chat = document.getElementById("chat");
+  const form = document.getElementById("input-form");
+  const input = document.getElementById("text");
+  const sendBtn = document.getElementById("send");
+  const clearBtn = document.getElementById("clear");
+
+  // История в формате контракта: роли чередуются, начинается и заканчивается user.
+  let history = [];
+
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function scrollDown() {
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function addUser(text) {
+    chat.appendChild(el("div", "msg user", text));
+    scrollDown();
+  }
+
+  function addWelcome() {
+    const box = el("div", "msg assistant");
+    box.appendChild(el("div", "label", "Помощник"));
+    box.appendChild(el("div", "", "Опишите, что нужно купить: категории (стол, кресло, лампа), город, общий бюджет в рублях и ограничения по характеристикам. Например: «Стол шириной не больше 100 см и кресло с регулировкой высоты, Таганрог, до 15 000 ₽»."));
+    chat.appendChild(box);
+  }
+
+  function formatRub(n) {
+    return new Intl.NumberFormat("ru-RU").format(n) + " ₽";
+  }
+
+  // Ответ clarify: список вопросов.
+  function renderClarify(questions) {
+    const box = el("div", "msg assistant clarify");
+    box.appendChild(el("div", "label", "Уточню детали"));
+    const ul = el("ul");
+    questions.forEach(q => ul.appendChild(el("li", "", q.text)));
+    box.appendChild(ul);
+    chat.appendChild(box);
+    return questions.map(q => q.text).join(" ") + " ";
+  }
+
+  // Ответ ok: карточки комплектов.
+  function renderOptions(options) {
+    const box = el("div", "msg assistant");
+    box.appendChild(el("div", "label", options.length === 1 ? "Подходящий комплект" : "Подходящие комплекты"));
+    const wrap = el("div", "options");
+    options.forEach((opt, i) => {
+      const card = el("div", "option");
+      const head = el("div", "head");
+      head.appendChild(el("div", "title", "Вариант " + (i + 1)));
+      head.appendChild(el("div", "price", formatRub(opt.total_rub)));
+      card.appendChild(head);
+      card.appendChild(el("div", "ids", "ID товаров: " + opt.listing_ids.join(", ")));
+      card.appendChild(el("div", "why", opt.explanation));
+      wrap.appendChild(card);
+    });
+    box.appendChild(wrap);
+    chat.appendChild(box);
+    return options.map(o => o.explanation).join(" ") + " ";
+  }
+
+  // Ответ no_match: сообщение.
+  function renderNoMatch(message) {
+    const box = el("div", "msg assistant nomatch");
+    box.appendChild(el("div", "label", "Подходящего комплекта нет"));
+    box.appendChild(el("div", "", message));
+    chat.appendChild(box);
+    return message;
+  }
+
+  function renderError(text) {
+    chat.appendChild(el("div", "msg error", "Ошибка: " + text));
+  }
+
+  function setBusy(busy) {
+    sendBtn.disabled = busy;
+    input.disabled = busy;
+  }
+
+  async function send(text) {
+    addUser(text);
+    history.push({ role: "user", text });
+
+    const typing = el("div", "msg assistant typing", "Думаю…");
+    chat.appendChild(typing);
+    scrollDown();
+    setBusy(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: history }),
+      });
+      const data = await res.json().catch(() => ({}));
+      typing.remove();
+
+      if (!res.ok) {
+        // Ошибку не добавляем в историю: следующий запрос уйдёт без неудачной реплики пользователя.
+        history.pop();
+        renderError(data.error || ("HTTP " + res.status));
+        return;
+      }
+
+      let assistantText = "";
+      if (data.status === "clarify") assistantText = renderClarify(data.questions);
+      else if (data.status === "ok") assistantText = renderOptions(data.options);
+      else if (data.status === "no_match") assistantText = renderNoMatch(data.message);
+      else { renderError("неизвестный статус ответа"); history.pop(); return; }
+
+      history.push({ role: "assistant", text: assistantText.trim() || "…" });
+    } catch (e) {
+      typing.remove();
+      history.pop();
+      renderError("нет связи с сервером");
+    } finally {
+      setBusy(false);
+      scrollDown();
+      input.focus();
+    }
+  }
+
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || sendBtn.disabled) return;
+    input.value = "";
+    autoGrow();
+    send(text);
+  });
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  function autoGrow() {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  }
+  input.addEventListener("input", autoGrow);
+
+  clearBtn.addEventListener("click", () => {
+    if (sendBtn.disabled) return;
+    history = [];
+    chat.innerHTML = "";
+    addWelcome();
+  });
+
+  addWelcome();
+  input.focus();
+})();
+</script>
+</body>
+</html>
