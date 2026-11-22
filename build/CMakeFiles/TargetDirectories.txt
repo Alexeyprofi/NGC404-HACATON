@@ -1,0 +1,3 @@
+C:/Avito Ai Assistant C++/build/CMakeFiles/run.dir
+C:/Avito Ai Assistant C++/build/CMakeFiles/edit_cache.dir
+C:/Avito Ai Assistant C++/build/CMakeFiles/rebuild_cache.dir

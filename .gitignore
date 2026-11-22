@@ -1,14 +1,13 @@
-build/
 out/
 .vs/
 .cache/
 CMakeUserPresets.json
 config.json
 *.obj
-*.exe
 *.pdb
 *.ilk
 *.log
+.env
 *.env
-web/.env
-.README.MD
+!.env.example
+README.MD

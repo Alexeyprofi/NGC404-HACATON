@@ -1,0 +1,8 @@
+[
+{
+  "directory": "C:/Avito Ai Assistant C++/build",
+  "command": "C:\\msys64\\mingw64\\bin\\g++.exe -DCPPHTTPLIB_OPENSSL_SUPPORT -DWINVER=0x0A00 -D_WIN32_WINNT=0x0A00 @CMakeFiles/run.dir/includes_CXX.rsp -g -std=gnu++20 -o CMakeFiles\\run.dir\\src\\main.cpp.obj -c \"C:\\Avito Ai Assistant C++\\src\\main.cpp\"",
+  "file": "C:/Avito Ai Assistant C++/src/main.cpp",
+  "output": "CMakeFiles/run.dir/src/main.cpp.obj"
+}
+]
