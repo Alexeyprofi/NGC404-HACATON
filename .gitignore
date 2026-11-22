@@ -1,0 +1,12 @@
+out/
+.vs/
+.cache/
+CMakeUserPresets.json
+config.json
+*.obj
+*.pdb
+*.ilk
+*.log
+.env
+*.env
+!.env.example
